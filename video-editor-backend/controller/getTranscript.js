@@ -3,8 +3,6 @@ import fetch from 'node-fetch';
 import { google } from 'googleapis';
 import { SpeechClient } from '@google-cloud/speech';
 
-import { getSubtitles } from 'youtube-captions-scraper';
-
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -19,7 +17,7 @@ const extractFileId = (driveLink) => {
     return match ? match[0] : null;
 };
 
-
+// Create credentials object from env variables
 const credentials = {
     type: 'service_account',
     project_id: process.env.GOOGLE_PROJECT_ID,
@@ -164,35 +162,32 @@ export const getVideoDetails = async (req, res) => {
     }
 };
 
-
 export const getTranscript = async (req, res) => {
     try {
-        const videoUrl = req.body.videoId;
-        const videoId = videoUrl.split('watch?v=')[1].split('&')[0];
+        const videoUrl = "https://www.youtube.com/watch?v=" + req.body.videoId;
+        console.log(videoUrl);
         
-        const rawTranscript = await getSubtitles({
-            videoID: videoId,
-            lang: 'en'
-        });
+        const rawTranscript = await YoutubeTranscript.fetchTranscript(videoUrl);
 
+        console.log("----raw  =---->"+rawTranscript);
         const formattedCaptions = rawTranscript.map((caption, index) => ({
             id: index,
             text: caption.text,
-            startTime: (caption.start / 1).toFixed(2),
-            endTime: (caption.start / 1 + caption.dur / 1).toFixed(2),
-            duration: caption.dur,
+            startTime: ((caption.offset / 1) ).toFixed(2),
+            endTime: (((caption.offset + caption.duration) / 1) ).toFixed(2),
+            duration: caption.duration / 1,
             formattedTime: {
                 start: {
-                    hours: Math.floor(caption.start / 3600),
-                    minutes: Math.floor((caption.start % 3600) / 60),
-                    seconds: Math.floor(caption.start % 60),
-                    milliseconds: Math.floor((caption.start % 1) * 1000)
+                    hours: Math.floor(caption.offset / 3600000),
+                    minutes: Math.floor((caption.offset % 3600000) / 60000),
+                    seconds: Math.floor((caption.offset % 60000) / 1000),
+                    milliseconds: caption.offset % 1000
                 },
                 end: {
-                    hours: Math.floor((caption.start + caption.dur) / 3600),
-                    minutes: Math.floor(((caption.start + caption.dur) % 3600) / 60),
-                    seconds: Math.floor((caption.start + caption.dur) % 60),
-                    milliseconds: Math.floor(((caption.start + caption.dur) % 1) * 1000)
+                    hours: Math.floor((caption.offset + caption.duration) / 3600000),
+                    minutes: Math.floor(((caption.offset + caption.duration) % 3600000) / 60000),
+                    seconds: Math.floor(((caption.offset + caption.duration) % 60000) / 1000),
+                    milliseconds: (caption.offset + caption.duration) % 1000
                 }
             }
         }));
@@ -202,16 +197,15 @@ export const getTranscript = async (req, res) => {
             data: formattedCaptions,
             message: "Captions with timestamps fetched successfully"
         });
-    } catch (error) {
-        console.error('Transcript Error:', error);
-        return res.status(500).json({
+
+           } catch (error) {
+    return res.status(500).json({
             success: false,
             message: "Failed to fetch transcript",
             error: error.message
         });
     }
 };
-
 
 
 
