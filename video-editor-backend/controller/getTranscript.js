@@ -176,6 +176,10 @@ export const getTranscript = async (req, res) => {
             country: 'US'
         });
 
+        
+
+        console.log(rawTranscript)
+
         const formattedCaptions = rawTranscript.map((caption, index) => ({
             id: index,
             text: caption.text,
@@ -208,7 +212,7 @@ export const getTranscript = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Failed to fetch transcript",
-            error: error.message
+            error: error
         });
     }
 };
