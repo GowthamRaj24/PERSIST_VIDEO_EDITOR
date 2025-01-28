@@ -218,6 +218,4 @@ export const getTranscript = async (req, res) => {
 };
 
 
-
-
 export default getTranscript;
