@@ -164,17 +164,28 @@ export const getVideoDetails = async (req, res) => {
 
 export const getTranscript = async (req, res) => {
     try {
-        const videoUrl = "https://www.youtube.com/watch?v=" + req.body.videoId;
-        console.log(videoUrl);
-        
-        const rawTranscript = await YoutubeTranscript.fetchTranscript(videoUrl);
+        // Extract clean video ID from the input
+        const inputId = req.body.videoId;
+        const videoId = inputId.includes('watch?v=') 
+            ? inputId.split('watch?v=')[1].split('&')[0] 
+            : inputId;
+            
+        const cleanVideoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        console.log('Processing video:', cleanVideoUrl);
 
-        console.log("----raw  =---->"+rawTranscript);
+        // Fetch transcript with specific options
+        const rawTranscript = await YoutubeTranscript.fetchTranscript(cleanVideoUrl, {
+            lang: 'en',
+            country: 'US'
+        });
+
+        console.log("Raw transcript length:", rawTranscript.length);
+
         const formattedCaptions = rawTranscript.map((caption, index) => ({
             id: index,
             text: caption.text,
-            startTime: ((caption.offset / 1) ).toFixed(2),
-            endTime: (((caption.offset + caption.duration) / 1) ).toFixed(2),
+            startTime: ((caption.offset / 1)).toFixed(2),
+            endTime: (((caption.offset + caption.duration) / 1)).toFixed(2),
             duration: caption.duration / 1,
             formattedTime: {
                 start: {
@@ -198,8 +209,9 @@ export const getTranscript = async (req, res) => {
             message: "Captions with timestamps fetched successfully"
         });
 
-           } catch (error) {
-    return res.status(500).json({
+    } catch (error) {
+        console.error('Transcript Error:', error);
+        return res.status(500).json({
             success: false,
             message: "Failed to fetch transcript",
             error: error.message
