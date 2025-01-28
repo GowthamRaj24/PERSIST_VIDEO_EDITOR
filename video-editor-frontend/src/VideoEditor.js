@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ScriptDisplay from './ScriptDisplay';
+import Backend_Url from './BackendUrl';
 
 
 const AIVideoEditor = () => {
@@ -55,7 +56,7 @@ const handleGenerateScript = async () => {
   
   console.log('Generated content:', contentOn);
 
-      const response = await fetch('http://localhost:4001/api/v1/script/generate', {
+      const response = await fetch(Backend_Url + '/script/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -93,7 +94,7 @@ const handleCopyToClipboard = () => {
 
 const handleCustomModification = async () => {
   try {
-      const response = await fetch('http://localhost:4001/api/v1/script/customize', {
+      const response = await fetch(Backend_Url+'/script/customize', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -140,7 +141,7 @@ const handleRemoveVideo = (videoId) => {
 const handleGenerateAllTranscripts = async () => {
   setLoading(true);
   if (videoSource === 'external') {
-      const res  = await fetch('http://localhost:4001/api/v1/transcript/drive', {
+      const res  = await fetch(Backend_Url+'/transcript/drive', {
         videoUrl : videoInput});
         const data = await res.json();
         console.log(data);
@@ -151,7 +152,7 @@ const handleGenerateAllTranscripts = async () => {
   try {
       const transcripts = {};
       for (const video of gotDetails.videos) {
-          const response = await fetch('http://localhost:4001/api/v1/transcript/generate', {
+          const response = await fetch(Backend_Url+'/transcript/generate', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -272,7 +273,7 @@ const handleFileChange = (event) => {
             }
             
             const transcripts = {};
-                const response = await fetch('http://localhost:4001/api/v1/transcript/drive', {
+                const response = await fetch(Backend_Url+'/transcript/drive', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -300,7 +301,7 @@ const handleFileChange = (event) => {
 
         else{
 
-        const videoData = await fetch(`http://localhost:4001/api/v1${videoProcessingEndpoint}`, {
+        const videoData = await fetch(Backend_Url+`${videoProcessingEndpoint}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({

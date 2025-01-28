@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import Backend_Url from './BackendUrl';
 
 const Home = () => {
   const [playlistUrl, setPlaylistUrl] = useState('');
@@ -13,7 +14,7 @@ const Home = () => {
     setLoading(true);
     try {
 
-      const playlistResponse = await fetch('http://localhost:4001/api/v1/playlist', {
+      const playlistResponse = await fetch(Backend_Url + '/list', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playlistUrl })
@@ -21,7 +22,7 @@ const Home = () => {
       const playlistData = await playlistResponse.json();
       setVideos(playlistData.data);
 
-      const scriptResponse = await fetch('http://localhost:4001/api/v1/generate-script', {
+      const scriptResponse = await fetch(Backend_Url+'/generate-script', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ playlistUrl, topic })
