@@ -212,7 +212,7 @@ export const getTranscript = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: "Failed to fetch transcript",
-            error: error
+            error: error.message
         });
     }
 };
