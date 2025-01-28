@@ -17,7 +17,7 @@ const extractFileId = (driveLink) => {
     return match ? match[0] : null;
 };
 
-// Create credentials object from env variables
+
 const credentials = {
     type: 'service_account',
     project_id: process.env.GOOGLE_PROJECT_ID,
@@ -164,17 +164,23 @@ export const getVideoDetails = async (req, res) => {
 
 export const getTranscript = async (req, res) => {
     try {
-        const videoUrl = "https://www.youtube.com/watch?v=" + req.body.videoId;
-        console.log(videoUrl);
+        // Extract video ID from full URL
+        const videoUrl = req.body.videoId;
+        const videoId = videoUrl.split('watch?v=')[1].split('&')[0];
+        const cleanVideoUrl = `https://www.youtube.com/watch?v=${videoId}`;
         
-        const rawTranscript = await YoutubeTranscript.fetchTranscript(videoUrl);
+        console.log('Processing video:', cleanVideoUrl);
+        
+        const rawTranscript = await YoutubeTranscript.fetchTranscript(cleanVideoUrl, {
+            lang: 'en',
+            country: 'US'
+        });
 
-        console.log(rawTranscript);
         const formattedCaptions = rawTranscript.map((caption, index) => ({
             id: index,
             text: caption.text,
-            startTime: ((caption.offset / 1) ).toFixed(2),
-            endTime: (((caption.offset + caption.duration) / 1) ).toFixed(2),
+            startTime: (caption.offset / 1).toFixed(2),
+            endTime: ((caption.offset + caption.duration) / 1).toFixed(2),
             duration: caption.duration / 1,
             formattedTime: {
                 start: {
@@ -197,15 +203,16 @@ export const getTranscript = async (req, res) => {
             data: formattedCaptions,
             message: "Captions with timestamps fetched successfully"
         });
-
-           } catch (error) {
-    return res.status(500).json({
+    } catch (error) {
+        console.error('Transcript Error:', error);
+        return res.status(500).json({
             success: false,
             message: "Failed to fetch transcript",
             error: error.message
         });
     }
 };
+
 
 
 
