@@ -110,7 +110,6 @@ const handleCustomModification = async () => {
 };
 
 const handleFinish = () => {
-  // Implement your finish logic here
   console.log('Script generation completed');
 };
 
@@ -122,14 +121,13 @@ const handleFinish = () => {
     format: 'standard',
     targetAudience: 'general'
   });
-  const [targetLanguages, setTargetLanguages] = useState([]);
+  const [targetLanguages, setTargetLangcuages] = useState([]);
   const [generatedContent, setGeneratedContent] = useState({
     transcripts: [],
     script: '',
     translations: {}
   });
   const [loading, setLoading] = useState(false);
-// Add these functions inside your AIVideoEditor component
 
 const handleRemoveVideo = (videoId) => {
   setgotDetails(prevDetails => ({
@@ -139,53 +137,68 @@ const handleRemoveVideo = (videoId) => {
 };
 
 const handleGenerateAllTranscripts = async () => {
-  setLoading(true);
-  if (videoSource === 'external') {
-      const res  = await fetch(Backend_Url+'/transcript/drive', {
-        videoUrl : videoInput});
-        const data = await res.json();
-        console.log(data);
+    setLoading(true);
+    try {
+        if (videoSource === 'external') {
+            const response = await fetch(`${Backend_Url}/transcript/drive`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ videoUrl: videoInput })
+            });
+            
+            const result = await response.json();
+            if (result.success) {
+                setGeneratedContent(prev => ({
+                    ...prev,
+                    transcripts: { external: result.data }
+                }));
+                setShowToast({
+                    visible: true,
+                    message: 'External video transcript generated successfully!'
+                });
+                setActiveStep('customize');
+            }
+        } else {
+            const transcripts = {};
+            for (const video of gotDetails.videos) {
+                console.log('Generating transcript for video:', video.id);
+                const response = await fetch(`${Backend_Url}/transcript/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        videoId: video.id,
+                        title: video.title
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    transcripts[video.id] = result.data;
+                }
+            }
+
+            setGeneratedContent(prev => ({
+                ...prev,
+                transcripts
+            }));
+
+            setShowToast({
+                visible: true,
+                message: 'Transcripts generated successfully!'
+            });
+
+            setActiveStep('customize');
+        }
+    } catch (error) {
+        setShowToast({
+            visible: true,
+            message: 'Error generating transcripts: ' + error.message
+        });
+    } finally {
         setLoading(false);
-  }
-  
-  else{
-  try {
-      const transcripts = {};
-      for (const video of gotDetails.videos) {
-          const response = await fetch(Backend_Url+'/transcript/generate', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                  videoId: video.id,
-                  title: video.title
-              })
-          });
-          const result = await response.json();
-          transcripts[video.id] = result.data;
-      }
-
-      setGeneratedContent(prev => ({
-          ...prev,
-          transcripts
-      }));
-
-
-      setShowToast({
-          visible: true,
-          message: 'Transcripts generated successfully!'
-      });
-
-      setActiveStep('customize');
-  } catch (error) {
-      setShowToast({
-          visible: true,
-          message: 'Error generating transcripts: ' + error.message
-      });
-  } finally {
-      setLoading(false);
-  }
-}
+    }
 };
+
 
   const videoSources = [
     { id: 'youtube', label: 'YouTube Video' },
@@ -193,7 +206,6 @@ const handleGenerateAllTranscripts = async () => {
     { id: 'external', label: 'External URL' }
   ];
 
-  // Add these at the beginning of your component with other state declarations
 const [showToast, setShowToast] = useState({ visible: false, message: '' });
 
 
