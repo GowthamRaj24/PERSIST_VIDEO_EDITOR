@@ -9,6 +9,9 @@ app.use(cors());
 app.use(express.json());
 app.use('/uploads', express.static('uploads'));
 
+app.use("/" , (req, res) => {
+    res.send("Welcome to Video Editor Backend");
+});
 
 app.use('/api/v1', routes);
 
