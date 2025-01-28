@@ -170,7 +170,7 @@ const handleGenerateAllTranscripts = async () => {
                         title: video.title
                     })
                 });
-                
+
                 const result = await response.json();
                 if (result.success) {
                     transcripts[video.id] = result.data;

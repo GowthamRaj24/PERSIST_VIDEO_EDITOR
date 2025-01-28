@@ -15,7 +15,7 @@ export const generateVideoScript = async (req, res) => {
         const Details = req.body.gotDetails;
         const customization = req.body.customization;
         const customPrompt = req.body.customPrompt;
-        
+
         const basePrompt = `
 I have multiple video transcripts, and I need you to create a cohesive video script by selecting and combining the most relevant segments.
 
@@ -54,15 +54,15 @@ Maintain the same JSON structure while incorporating these style preferences.`
 
 
         
-            console.log(enhancedPrompt)
+            console.log("Prompt-->" + enhancedPrompt)
 
         const result = await model.generateContent(enhancedPrompt);
         console.log("------")
         // console.log(result)
 
         const scriptContent = await result.response.text();
-        console.log(">>>>")
-        console.log(scriptContent);
+        // console.log(">>>>")
+        // console.log(scriptContent);
 
         return res.status(200).json({
             success: true,

@@ -3,6 +3,8 @@ import fetch from 'node-fetch';
 import { google } from 'googleapis';
 import { SpeechClient } from '@google-cloud/speech';
 
+import { getSubtitles } from 'youtube-captions-scraper';
+
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -162,42 +164,35 @@ export const getVideoDetails = async (req, res) => {
     }
 };
 
+
 export const getTranscript = async (req, res) => {
     try {
-        // Extract video ID from full URL
         const videoUrl = req.body.videoId;
         const videoId = videoUrl.split('watch?v=')[1].split('&')[0];
-        const cleanVideoUrl = `https://www.youtube.com/watch?v=${videoId}`;
         
-        console.log('Processing video:', cleanVideoUrl);
-        
-        const rawTranscript = await YoutubeTranscript.fetchTranscript(cleanVideoUrl, {
-            lang: 'en',
-            country: 'US'
+        const rawTranscript = await getSubtitles({
+            videoID: videoId,
+            lang: 'en'
         });
-
-        
-
-        console.log(rawTranscript)
 
         const formattedCaptions = rawTranscript.map((caption, index) => ({
             id: index,
             text: caption.text,
-            startTime: (caption.offset / 1).toFixed(2),
-            endTime: ((caption.offset + caption.duration) / 1).toFixed(2),
-            duration: caption.duration / 1,
+            startTime: (caption.start / 1).toFixed(2),
+            endTime: (caption.start / 1 + caption.dur / 1).toFixed(2),
+            duration: caption.dur,
             formattedTime: {
                 start: {
-                    hours: Math.floor(caption.offset / 3600000),
-                    minutes: Math.floor((caption.offset % 3600000) / 60000),
-                    seconds: Math.floor((caption.offset % 60000) / 1000),
-                    milliseconds: caption.offset % 1000
+                    hours: Math.floor(caption.start / 3600),
+                    minutes: Math.floor((caption.start % 3600) / 60),
+                    seconds: Math.floor(caption.start % 60),
+                    milliseconds: Math.floor((caption.start % 1) * 1000)
                 },
                 end: {
-                    hours: Math.floor((caption.offset + caption.duration) / 3600000),
-                    minutes: Math.floor(((caption.offset + caption.duration) % 3600000) / 60000),
-                    seconds: Math.floor(((caption.offset + caption.duration) % 60000) / 1000),
-                    milliseconds: (caption.offset + caption.duration) % 1000
+                    hours: Math.floor((caption.start + caption.dur) / 3600),
+                    minutes: Math.floor(((caption.start + caption.dur) % 3600) / 60),
+                    seconds: Math.floor((caption.start + caption.dur) % 60),
+                    milliseconds: Math.floor(((caption.start + caption.dur) % 1) * 1000)
                 }
             }
         }));
@@ -216,6 +211,8 @@ export const getTranscript = async (req, res) => {
         });
     }
 };
+
+
 
 
 export default getTranscript;
