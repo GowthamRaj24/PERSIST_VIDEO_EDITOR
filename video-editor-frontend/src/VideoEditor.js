@@ -48,9 +48,9 @@ const handleGenerateScript = async () => {
     console.log('Generating script for video:', videoId);
     contentOn[videoId] = generatedContent.transcripts[videoId].map(segment => ({
       text: segment.text,
-      start: (segment.startTime * 1000).toFixed(2),
-      end: (segment.startTime * 1000 + segment.duration * 1000).toFixed(2)
-    }));
+      start: (segment.startTime),
+      end: (segment.endTime)
+    }))
   }
 
   
@@ -664,7 +664,7 @@ const handleFileChange = (event) => {
                             <div className="w-4 h-4 rounded-full bg-purple-500" />
                         </div>
                         <div className="absolute top-12 left-1/2 -translate-x-1/2 text-sm text-gray-500 whitespace-nowrap">
-                            {segment.startTime.toFixed(2)}s - {segment.endTime.toFixed(2)}s
+                            {(segment.startTime)}s - {(segment.endTime)}s
                         </div>
                     </div>
                     <div className="flex-1 bg-gray-900/50 rounded-xl p-4 ml-4 hover:bg-gray-900/70 transition-colors">
@@ -686,7 +686,7 @@ const handleFileChange = (event) => {
                             <div className="w-4 h-4 rounded-full bg-purple-500" />
                         </div>
                         <div className="absolute top-12 left-1/2 -translate-x-1/2 text-sm text-gray-500 whitespace-nowrap">
-                            {segment.startTime.toFixed(2)}s - {segment.endTime.toFixed(2)}s
+                            {segment.startTime}s - {segment.endTime}s
                         </div>
                     </div>
                     <div className="flex-1 bg-gray-900/50 rounded-xl p-4 ml-4 hover:bg-gray-900/70 transition-colors">

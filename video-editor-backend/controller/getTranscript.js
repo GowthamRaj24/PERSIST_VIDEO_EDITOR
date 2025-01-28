@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
 import dotenv from 'dotenv';
 dotenv.config();
 
@@ -168,13 +169,13 @@ export const getTranscript = async (req, res) => {
         
         const rawTranscript = await YoutubeTranscript.fetchTranscript(videoUrl);
 
-        
+        console.log(rawTranscript);
         const formattedCaptions = rawTranscript.map((caption, index) => ({
             id: index,
             text: caption.text,
-            startTime: caption.offset / 1000,
-            endTime: (caption.offset + caption.duration) / 1000,
-            duration: caption.duration / 1000,
+            startTime: ((caption.offset / 1) ).toFixed(2),
+            endTime: (((caption.offset + caption.duration) / 1) ).toFixed(2),
+            duration: caption.duration / 1,
             formattedTime: {
                 start: {
                     hours: Math.floor(caption.offset / 3600000),
