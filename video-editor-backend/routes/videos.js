@@ -3,7 +3,6 @@ import multer from 'multer';
 import { getDriveTranscript, getTranscript } from '../controller/getTranscript.js';
 import { generateVideoScript, customizeScript, translateScript } from '../controller/claudAI.js';
 import { handleExternalVideo, handleLocalVideo, handleYoutubePlaylist, handleYoutubeVideo } from '../controller/uploadVideo.js';
-import { getGoogleAuthUrl, handleGoogleCallback } from '../controller/authController.js';
 
 const router = express.Router();
 
@@ -28,9 +27,6 @@ const upload = multer({
     }
 });
 
-// Authentication Routes
-router.get('/auth/google/url', getGoogleAuthUrl);
-router.post('/auth/google/callback', handleGoogleCallback);
 
 // Video Processing Routes
 router.post('/video/youtube', handleYoutubeVideo);
