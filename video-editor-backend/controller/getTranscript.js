@@ -164,45 +164,80 @@ export const getVideoDetails = async (req, res) => {
 
 export const getTranscript = async (req, res) => {
     try {
-        // Extract clean video ID from the input
         const inputId = req.body.videoId;
         const videoId = inputId.includes('watch?v=') 
             ? inputId.split('watch?v=')[1].split('&')[0] 
             : inputId;
-            
-        const cleanVideoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        console.log('Processing video:', cleanVideoUrl);
 
-        // Fetch transcript with specific options
-        const rawTranscript = await YoutubeTranscript.fetchTranscript(cleanVideoUrl, {
-            lang: 'en',
-            country: 'US'
-        });
+        const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+        console.log('Fetching video page:', videoUrl);
 
-        console.log("Raw transcript length:", rawTranscript.length);
+        // Fetch YouTube video page HTML
+        const response = await fetch(videoUrl);
+        if (!response.ok) throw new Error(`Failed to fetch video page: ${response.statusText}`);
+        const html = await response.text();
 
-        const formattedCaptions = rawTranscript.map((caption, index) => ({
-            id: index,
-            text: caption.text,
-            startTime: ((caption.offset / 1)).toFixed(2),
-            endTime: (((caption.offset + caption.duration) / 1)).toFixed(2),
-            duration: caption.duration / 1,
-            formattedTime: {
-                start: {
-                    hours: Math.floor(caption.offset / 3600000),
-                    minutes: Math.floor((caption.offset % 3600000) / 60000),
-                    seconds: Math.floor((caption.offset % 60000) / 1000),
-                    milliseconds: caption.offset % 1000
-                },
-                end: {
-                    hours: Math.floor((caption.offset + caption.duration) / 3600000),
-                    minutes: Math.floor(((caption.offset + caption.duration) % 3600000) / 60000),
-                    seconds: Math.floor(((caption.offset + caption.duration) % 60000) / 1000),
-                    milliseconds: (caption.offset + caption.duration) % 1000
-                }
-            }
-        }));
+        // Extract ytInitialPlayerResponse using regex
+        const YT_INITIAL_PLAYER_RESPONSE_RE = /ytInitialPlayerResponse\s*=\s*({.+?})\s*;\s*(?:var\s+(?:meta|head)|<\/script|\n)/s;
+        const match = html.match(YT_INITIAL_PLAYER_RESPONSE_RE);
+        if (!match) throw new Error('Could not extract ytInitialPlayerResponse');
+        const playerResponse = JSON.parse(match[1]);
 
+        // Extract and validate caption tracks
+        const captionTracks = playerResponse?.captions?.playerCaptionsTracklistRenderer?.captionTracks;
+        if (!captionTracks || !captionTracks.length) throw new Error('No caption tracks available');
+
+        // Sort tracks by priority: English first, non-ASR preferred
+        const compareTracks = (a, b) => {
+            if (a.languageCode === 'en' && b.languageCode !== 'en') return -1;
+            if (b.languageCode === 'en' && a.languageCode !== 'en') return 1;
+            if (a.kind !== 'asr' && b.kind === 'asr') return -1;
+            if (a.kind === 'asr' && b.kind !== 'asr') return 1;
+            return 0;
+        };
+        captionTracks.sort(compareTracks);
+
+        // Fetch transcript data from selected track
+        const selectedTrack = captionTracks[0];
+        const transcriptUrl = `${selectedTrack.baseUrl}&fmt=json3`;
+        console.log('Fetching transcript from:', transcriptUrl);
+        const transcriptResponse = await fetch(transcriptUrl);
+        if (!transcriptResponse.ok) throw new Error(`Transcript fetch failed: ${transcriptResponse.statusText}`);
+        const transcriptData = await transcriptResponse.json();
+
+        // Process events into formatted captions
+        const formattedCaptions = transcriptData.events
+            .filter(event => event.segs) // Filter valid segments
+            .map((event, index) => {
+                const text = event.segs.map(seg => seg.utf8).join(' ');
+                const startMs = event.tStartMs;
+                const durationMs = event.dDurationMs || 0;
+                const endMs = startMs + durationMs;
+
+                return {
+                    id: index,
+                    text: text,
+                    startTime: parseFloat((startMs/1000).toFixed(2)),
+                    endTime: parseFloat((endMs/1000).toFixed(2)),
+                    duration: parseFloat(durationMs.toFixed(2)),
+                    formattedTime: {
+                        start: {
+                            hours: Math.floor(startMs / 3600000) ,
+                            minutes: Math.floor((startMs % 3600000) / 60000),
+                            seconds: Math.floor((startMs % 60000) / 1000),
+                            milliseconds: startMs % 1000
+                        },
+                        end: {
+                            hours: Math.floor(endMs / 3600000),
+                            minutes: Math.floor((endMs % 3600000) / 60000),
+                            seconds: Math.floor((endMs % 60000) / 1000),
+                            milliseconds: endMs % 1000
+                        }
+                    }
+                };
+            });
+
+        console.log('Successfully processed captions:', formattedCaptions.length);
         return res.json({
             success: true,
             data: formattedCaptions,
@@ -210,7 +245,7 @@ export const getTranscript = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Transcript Error:', error);
+        console.error('Transcript Processing Error:', error);
         return res.status(500).json({
             success: false,
             message: "Failed to fetch transcript",

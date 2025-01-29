@@ -26,6 +26,8 @@
     "youtube-captions-scraper": "^2.0.3",
     "youtube-dl-exec": "^3.0.13",
     "youtube-transcript": "^1.2.1",
+    "youtubei": "^1.6.7",
+    "youtubei.js": "^13.0.0",
     "ytdl-core": "^4.11.5"
   }
 }
