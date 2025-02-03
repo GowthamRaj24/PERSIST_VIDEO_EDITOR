@@ -10,7 +10,7 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
 
 const openai = new OpenAI({
-    apiKey: "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",
+    apiKey: process.env.OPENAI_API_KEY,
     dangerouslyAllowBrowser: true
 });
 
