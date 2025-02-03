@@ -2,32 +2,42 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ScriptDisplay from './ScriptDisplay';
 import Backend_Url from './BackendUrl';
+import OpenAI from "openai";
+
+
+const openai = new OpenAI({
+    apiKey: "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",
+    dangerouslyAllowBrowser: true
+});
+
 
 
 const AIVideoEditor = () => {
   const [finalGeneratedContent , setFinalGeneratedContent] = useState("");
+  const [videoUrl, setVideoUrl] = useState(null);
+const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+const [isVideoLoading, setIsVideoLoading] = useState(false);
+
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
-const [isApplyingModifications, setIsApplyingModifications] = useState(false);
+  const [isApplyingModifications, setIsApplyingModifications] = useState(false);
   const [activeStep, setActiveStep] = useState('input');
   const [videoSource, setVideoSource] = useState('youtube');
   const [videoInput, setVideoInput] = useState('');
   const [topic, setTopic] = useState('');
   const [gotDetails, setgotDetails] = useState({});
-  
-  // Add these to your component
-const [activeVideo, setActiveVideo] = useState(null);
+  const [activeVideo, setActiveVideo] = useState(null);
 
+    const [scriptOptions, setScriptOptions] = useState({
+    tone: 'professional',
+    length: 'medium',
+    style : 'narrative'
+    });
 
-const [scriptOptions, setScriptOptions] = useState({
-  tone: 'professional',
-  length: 'medium',
-  style : 'narrative'
-});
 const [targetLanguage, setTargetLanguage] = useState('es');
 const [generatedScript, setGeneratedScript] = useState("");
 const [customPrompt, setCustomPrompt] = useState('');
 
-// Add supported languages constant
+
 const supportedLanguages = [
   { code: 'es', name: 'Spanish' },
   { code: 'fr', name: 'French' },
@@ -39,7 +49,7 @@ const supportedLanguages = [
   { code: 'zh', name: 'Chinese' }
 ];
 
-// Handler functions
+
 const handleGenerateScript = async () => {
   setIsGeneratingScript(true);
   try {
@@ -53,6 +63,9 @@ const handleGenerateScript = async () => {
     }))
   }
 
+
+
+  
   
   console.log('Generated content:', contentOn);
 
@@ -61,19 +74,20 @@ const handleGenerateScript = async () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
              gotDetails : contentOn,
+
               topic: generatedContent.transcripts,
-              customPrompt : customPrompt,
+              customPrompt : topic + customPrompt,
               customization : {
                   tone: scriptOptions.tone,
                   length: scriptOptions.length,
-                  style: scriptOptions.style,
+                  style: scriptOptions.style
               }
           })
       });
       const result = await response.json();
       
       console.log("-------");
-      console.log(result.data.script);
+      console.log(result);
       setFinalGeneratedContent(result.data.script)
 
 
@@ -86,10 +100,13 @@ const handleGenerateScript = async () => {
 };
 
 
-
 const handleCopyToClipboard = () => {
-  navigator.clipboard.writeText(generatedScript);
-  alert('Script copied to clipboard');
+  if (finalGeneratedContent) {
+    navigator.clipboard.writeText(finalGeneratedContent);
+    alert('Script copied to clipboard');
+  } else {
+    alert('No script available to copy');
+  }
 };
 
 const handleCustomModification = async () => {
@@ -113,7 +130,6 @@ const handleFinish = () => {
   console.log('Script generation completed');
 };
 
-
   const [customization, setCustomization] = useState({
     tone: 'professional',
     length: 'default',
@@ -136,17 +152,127 @@ const handleRemoveVideo = (videoId) => {
   }));
 };
 
+
+  
+const [showDownloadButton, setShowDownloadButton] = useState(false);
+
+const handleGenerateVideo = async () => {
+    setIsGeneratingVideo(true);
+    setIsVideoLoading(true);
+    
+    const clipsWithDuration = selectedClips.map(clip => ({
+      ...clip,
+      duration: parseFloat(clip.endTime) - parseFloat(clip.startTime)
+    }));
+  
+    try {
+      const response = await fetch(`${Backend_Url}/video/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ clips: clipsWithDuration })
+      });
+  
+      const blob = await response.blob();
+      const videoUrl = URL.createObjectURL(blob);
+      setVideoUrl(videoUrl);
+      setShowDownloadButton(true);
+      setIsVideoLoading(false);
+      
+    } catch (error) {
+      console.error('Failed to generate video:', error);
+      setIsVideoLoading(false);
+    } finally {
+      setIsGeneratingVideo(false);
+    }
+  };
+  
+  
+const [selectedClips, setSelectedClips] = useState([]);
+
+useEffect(() => {
+  if (finalGeneratedContent) {
+    const initialClips = Object.values(generatedContent.transcripts).flatMap(segments => 
+      segments.map(segment => ({
+        startTime: segment.startTime,
+        endTime: segment.endTime,
+        text: segment.text
+      }))
+    );
+    setSelectedClips(initialClips);
+
+
+  }
+}, [finalGeneratedContent]);
+
+useEffect(() => {
+  if (activeStep === 'customize' && generatedContent.transcripts) {
+    const videoIds = Object.keys(generatedContent.transcripts);
+    if (videoIds.length > 0) {
+      setActiveVideo(videoIds[0]);
+    }
+  }
+}, [activeStep, generatedContent.transcripts]);
+
+const cleanAndParseScript = (script) => {
+    if (!script) return [];
+    
+    const cleanScript = script.replace(/```json|\```/g, '').trim();
+    
+    try {
+      return JSON.parse(cleanScript);
+    } catch (error) {
+      console.log('Script parsing info:', error);
+      return [];
+    }
+  };
+
+useEffect(() => {
+  const segments = cleanAndParseScript(finalGeneratedContent);
+  setSelectedClips(segments);
+}, [finalGeneratedContent]);
+
+const handleClipSelect = (segment) => {
+  setSelectedClips(prev => {
+    const isAlreadySelected = prev.some(
+      clip => clip.videoId === segment.videoId && 
+      clip.startTime === segment.startTime && 
+      clip.endTime === segment.endTime
+    );
+    
+    if (isAlreadySelected) {
+      return prev.filter(
+        clip => !(clip.videoId === segment.videoId && 
+        clip.startTime === segment.startTime && 
+        clip.endTime === segment.endTime)
+      );
+    }
+    return [...prev, segment];
+  });
+};
+
+
 const handleGenerateAllTranscripts = async () => {
     setLoading(true);
+
     try {
         if (videoSource === 'external') {
             const response = await fetch(`${Backend_Url}/transcript/drive`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: { 
+                    'Content-Type': 'application/json'
+                },
                 body: JSON.stringify({ videoUrl: videoInput })
             });
-            
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
             const result = await response.json();
+
+            
             if (result.success) {
                 setGeneratedContent(prev => ({
                     ...prev,
@@ -154,26 +280,95 @@ const handleGenerateAllTranscripts = async () => {
                 }));
                 setShowToast({
                     visible: true,
+                    type: 'success',
                     message: 'External video transcript generated successfully!'
                 });
                 setActiveStep('customize');
             }
         } else {
             const transcripts = {};
+            
+            // Process videos sequentially to avoid overwhelming the server
             for (const video of gotDetails.videos) {
-                console.log('Generating transcript for video:', video.id);
-                const response = await fetch(`${Backend_Url}/transcript/generate`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        videoId: video.id,
-                        title: video.title
-                    })
-                });
+                try {
+                    console.log('Processing video:', video.id);
+                    
+                    const response = await fetch(`${Backend_Url}/transcript/generate`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            videoId: video.id,
+                            title: video.title,
+                            language: 'auto'
+                        })
+                    });
 
-                const result = await response.json();
-                if (result.success) {
-                    transcripts[video.id] = result.data;
+
+                    if (!response.ok) {
+                        throw new Error(`Transcript generation failed for video ${video.id}`);
+                    }
+
+                    const result = await response.json();
+
+                    console.log("Original Transcript Successfully Fetched--> ", result.data);
+
+                    if (result.success) {
+                        const textToTranslate = result.data
+                            .map(item => item.text)
+                            .join('\n');
+
+                        const languageDetectionPrompt = `Analyze the language of the following text and respond with only the language name in English. If it's English, just respond with "English". No additional commentary:
+
+${textToTranslate.substring(0, 1000)}... // Using first 1000 chars for efficiency`;
+
+                        const detectedLanguage = await detectLanguage(languageDetectionPrompt);
+
+                        console.log("Detected Language:--> " + detectedLanguage);
+
+                        if (detectedLanguage.toLowerCase() !== "english") {
+
+                            console.log("Translating the "+ detectedLanguage +" text to English using OPENAI");
+                            const translationPrompt = `Translate the following text to English. Maintain:
+1. The original formatting
+2. Any technical terms
+3. Names and proper nouns
+4. Numerical information
+
+Context: ${topic || 'General content'}
+
+Text to translate:
+${textToTranslate}`;
+
+                            const completion = await openai.chat.completions.create({
+                                messages: [{
+                                    role: "user",
+                                    content: translationPrompt
+                                }],
+                                model: "gpt-4",
+                                temperature: 0.3,
+                            });
+
+                            const translatedText = completion.choices[0].message.content;
+                            const translatedLines = translatedText.split('\n');
+
+                            transcripts[video.id] = result.data.map((item, index) => ({
+                                ...item,
+                                originalText: item.text, // Preserve original text
+                                text: translatedLines[index] || item.text
+                            }));
+                        } else {
+                            transcripts[video.id] = result.data;
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Error processing video ${video.id}:`, error);
+                    setShowToast({
+                        visible: true,
+                        type: 'error',
+                        message: `Error processing video ${video.title}: ${error.message}`
+                    });
                 }
             }
 
@@ -184,18 +379,45 @@ const handleGenerateAllTranscripts = async () => {
 
             setShowToast({
                 visible: true,
-                message: 'Transcripts generated successfully!'
+                type: 'success',
+                message: 'Transcripts processed successfully!'
             });
+
+            setTimeout(() => {
+                setShowToast({ visible: false, message: '' });
+            }, 3000);
 
             setActiveStep('customize');
         }
     } catch (error) {
+        console.error('Transcript generation error:', error);
         setShowToast({
             visible: true,
-            message: 'Error generating transcripts: ' + error.message
+            type: 'error',
+            message: `Error generating transcripts: ${error.message}`
         });
     } finally {
         setLoading(false);
+    }
+};
+
+// Helper function for language detection
+const detectLanguage = async (text) => {
+    try {
+        const response = await openai.chat.completions.create({
+            messages: [{
+                role: "user",
+                content: text
+            }],
+            model: "gpt-4",
+            temperature: 0.1,
+            max_tokens: 10
+        });
+
+        return response.choices[0].message.content.trim();
+    } catch (error) {
+        console.error('Language detection failed:', error);
+        return 'English'; // Default to English on error
     }
 };
 
@@ -293,6 +515,7 @@ const handleFileChange = (event) => {
                     })
                 });
                 const result = await response.json();
+                console.log(result)
                 transcripts["videoId"] = result.data;
 
                 console.log(transcripts);
@@ -348,8 +571,84 @@ const handleFileChange = (event) => {
     }
   
 };
+      {showDownloadButton ? (
+  <a
+    href={videoUrl}
+    download="edited-video.mp4"
+    className={`px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg flex items-center gap-2 ${!finalGeneratedContent && 'pointer-events-none opacity-50'}`}
+  >
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+    </svg>
+    Download Video
+  </a>
+) : (
+  <button
+    onClick={handleGenerateVideo}
+    disabled={isGeneratingVideo || selectedClips.length === 0 || !finalGeneratedContent}
+    className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+  >
+    {isGeneratingVideo ? (
+      <>
+        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+        <span>Generating...</span>
+      </>
+    ) : (
+      <>
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+        </svg>
+        <span>Merge and Generate Video</span>
+      </>
+    )}
+          </button>
+        )}
 
 
+useEffect(() => {
+ if (showDownloadButton === true) {
+    setShowDownloadButton(false)
+    }
+    else{
+        setShowDownloadButton(true)
+    }
+}, [finalGeneratedContent])
+
+// Add this state for download status
+const [isDownloading, setIsDownloading] = useState(false);
+
+// Add a download handler function
+const handleDownload = async (e) => {
+  e.preventDefault();
+  if (!videoUrl) return;
+  
+  setIsDownloading(true);
+  try {
+    const link = document.createElement('a');
+    link.href = videoUrl;
+    link.download = 'edited-video.mp4';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (error) {
+    console.error('Download failed:', error);
+    setShowToast({
+      visible: true,
+      type: 'error',
+      message: 'Failed to download video'
+    });
+  } finally {
+    setIsDownloading(false);
+  }
+};
+
+useEffect(() => {
+  if (generatedContent.transcripts && Object.keys(generatedContent.transcripts).length > 0) {
+    // Set the first video as active by default
+    const firstVideoId = Object.keys(generatedContent.transcripts)[0];
+    setActiveVideo(firstVideoId);
+  }
+}, [generatedContent.transcripts]); // This will run when transcripts are loaded
 
   return (
     <div className="min-h-screen bg-[#0A0A0F] text-white overflow-hidden">
@@ -367,7 +666,7 @@ const handleFileChange = (event) => {
           className="text-center mb-16"
         >
           <h1 className="text-6xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400">
-            Persist Video Script Studio
+            Persist Clip Smart AI
           </h1>
           <p className="mt-4 text-xl text-gray-400">
             Makes Video Editing Easier and Faster
@@ -379,7 +678,7 @@ const handleFileChange = (event) => {
           layout
           className="max-w-4xl mx-auto"
         >
-          {/* Progress Steps */}
+            
           <div className="flex justify-between mb-8 px-4">
             {['Input', 'Transcribe', 'Customize', 'Translate'].map((step, index) => (
               <div key={step} className="flex items-center">
@@ -428,7 +727,7 @@ const handleFileChange = (event) => {
                       </motion.button>
                     ))}
                   </div>
-  
+
                   {/* Input Fields */}
                   <div className="space-y-6">
                     {videoSource === 'local' ? (
@@ -458,7 +757,7 @@ const handleFileChange = (event) => {
                         placeholder={`Enter ${videoSource} URL`}
                       />
                     )}
-  
+
                     <textarea
                       value={topic}
                       onChange={(e) => setTopic(e.target.value)}
@@ -472,9 +771,7 @@ const handleFileChange = (event) => {
                             whileTap={{ scale: 0.98 }}
                             onClick={async () => {
                               await handleGenerate();
-                              if (videoSource === 'external') {
-                              setActiveStep('customize');
-                              }
+                              
                             }}
                             disabled={loading}
                             className="w-full py-4 bg-gradient-to-r from-purple-500 to-blue-500 rounded-xl font-medium text-lg relative overflow-hidden group"
@@ -658,7 +955,6 @@ const handleFileChange = (event) => {
                 </div>
             )}
 
-{/* Transcript Timeline */}
 <div className={`col-span-12 ${videoSource === 'external' ? 'lg:col-span-12' : 'lg:col-span-7'}`}>
     <div className="bg-gray-800/50 rounded-xl p-6 h-[600px] overflow-y-auto custom-scrollbar">
         {videoSource === 'external' 
@@ -735,62 +1031,156 @@ const handleFileChange = (event) => {
 
 
 {activeStep === 'translate' && (
-    <motion.div
-        key="translate"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        className="space-y-8"
-    >
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="space-y-4">
-                <h3 className="text-xl font-semibold text-white">Script Options</h3>
-                <div className="grid grid-cols-2 gap-4">
-                    <select 
-                        onChange={(e) => setScriptOptions(prev => ({...prev, tone: e.target.value}))}
-                        className="bg-gray-800 text-gray-300 rounded-lg p-2"
-                    >
-                        <option value="professional">Professional</option>
-                        <option value="casual">Casual</option>
-                        <option value="formal">Formal</option>
-                        <option value="friendly">Friendly</option>
-                        <option value="neutral">Neutral</option>
-                    </select>
-                    <select 
-                        onChange={(e) => setScriptOptions(prev => ({...prev, length: e.target.value}))}
-                        className="bg-gray-800 text-gray-300 rounded-lg p-2"
-                    >
-                        <option value="short">Short</option>
-                        <option value="medium">Medium</option>
-                        <option value="long">Long</option>
-                    </select>
-                    <select 
-                        onChange={(e) => setScriptOptions(prev => ({...prev, style: e.target.value}))}
-                        className="bg-gray-800 text-gray-300 rounded-lg p-2"
-                    >
-                        <option value="narrative">Narrative</option>
-                        <option value="educational">Educational</option>
-                        <option value="conversational">Conversational</option>
-                        <option value="dramatic">Dramatic</option>
-                    </select>
-                </div>
-                
-                <button
-                    onClick={handleGenerateScript}
-                    disabled={isGeneratingScript}
-                    className="w-full py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg flex items-center justify-center gap-2"
-                >
-                    {isGeneratingScript ? (
-                        <>
-                            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                            <span>Generating...</span>
-                        </>
-                    ) : (
-                        'Generate Script'
-                    )}
-                </button>
-            </div>
+  <motion.div
+    key="translate"
+    initial={{ opacity: 0, y: 20 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -20 }}
+    className="space-y-8"
+  >
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="space-y-4">
+        <h3 className="text-xl font-semibold text-white">Script Options</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <select 
+            onChange={(e) => setScriptOptions(prev => ({...prev, tone: e.target.value}))}
+            className="bg-gray-800 text-gray-300 rounded-lg p-2"
+          >
+            <option value="professional">Professional</option>
+            <option value="casual">Casual</option>
+            <option value="formal">Formal</option>
+            <option value="friendly">Friendly</option>
+            <option value="neutral">Neutral</option>
+          </select>
+
+          <select 
+            onChange={(e) => setScriptOptions(prev => ({...prev, length: e.target.value}))}
+            className="bg-gray-800 text-gray-300 rounded-lg p-2"
+          >
+            <option value="short">Short</option>
+            <option value="medium">Medium</option>
+            <option value="long">Long</option>
+          </select>
         </div>
+
+        <button
+          onClick={handleGenerateScript}
+          disabled={isGeneratingScript}
+          className="w-full py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isGeneratingScript ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>Generating...</span>
+            </>
+          ) : (
+            'Generate Script'
+          )}
+        </button>
+      </div>
+    </div>
+
+    <div className="bg-gray-800/50 rounded-xl p-6">
+      <h3 className="text-xl font-semibold text-white mb-4">Video Preview</h3>
+      
+      <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+        {isVideoLoading && !videoUrl ? (
+          <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900/80">
+            <div className="w-16 h-16 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+            <p className="text-purple-400 font-medium">Generating Video...</p>
+            <p className="text-gray-400 text-sm mt-2">This may take a few moments</p>
+          </div>
+        ) : videoUrl ? (
+          <video
+            id="previewVideo"
+            className="w-full h-full"
+            controls
+            src={videoUrl}
+          >
+            Your browser does not support the video tag.
+          </video>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <p className="text-gray-400">Generate video to preview</p>
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center justify-between mt-4">
+        <div className="flex items-center gap-4">
+        <button
+  onClick={() => document.getElementById('previewVideo')?.play()}
+  className="px-4 py-2 bg-purple-500 hover:bg-purple-600 text-white rounded-lg flex items-center gap-2"
+  disabled={!videoUrl || !finalGeneratedContent}
+>
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+  Play
+</button>
+
+<button
+  onClick={() => document.getElementById('previewVideo')?.pause()}
+  className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg flex items-center gap-2"
+  disabled={!videoUrl || !finalGeneratedContent}
+>
+  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+  </svg>
+  Pause
+</button>
+        </div>
+
+
+        {showDownloadButton ? (
+    <button
+      onClick={handleDownload}
+      disabled={!videoUrl || isDownloading}
+      className={`px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg flex items-center gap-2 
+        ${(!videoUrl || isDownloading) && 'opacity-50 cursor-not-allowed'}`}
+    >
+      {isDownloading ? (
+        <>
+          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <span>Downloading...</span>
+        </>
+      ) : (
+        <>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          <span>Download Video</span>
+        </>
+      )}
+    </button>
+  ) : (
+    <button
+      onClick={handleGenerateVideo}
+      disabled={isGeneratingVideo || selectedClips.length === 0 || !finalGeneratedContent}
+      className="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg flex items-center gap-2 
+        disabled:opacity-50 disabled:cursor-not-allowed"
+    >
+      {isGeneratingVideo ? (
+        <>
+          <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+          <span>Generating...</span>
+        </>
+      ) : (
+        <>
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+              d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+          </svg>
+          <span>Generate Video</span>
+        </>
+      )}
+    </button>
+  )}
+      </div>
+    </div>
+
 
         <div className="bg-gray-800/50 rounded-xl p-6">
             <div className="flex justify-between items-center mb-4">
@@ -807,7 +1197,11 @@ const handleFileChange = (event) => {
             </div>
 
             <div className="h-[400px] overflow-y-auto custom-scrollbar">
-                <ScriptDisplay generatedScript={finalGeneratedContent} />
+            <ScriptDisplay 
+  generatedScript={finalGeneratedContent}
+  selectedClips={selectedClips}
+  onClipSelect={handleClipSelect}
+/>
             </div>
         </div>
 
@@ -836,36 +1230,24 @@ const handleFileChange = (event) => {
         </div>
 
         <div className="flex justify-between pt-6">
-            <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => setActiveStep('customize')}
-                className="px-6 py-3 bg-gray-700 rounded-xl text-gray-300 hover:bg-gray-600"
-            >
-                Back
-            </motion.button>
+      <motion.button
+        whileHover={{ scale: 1.02 }}
+        whileTap={{ scale: 0.98 }}
+        onClick={() => setActiveStep('customize')}
+        className="px-6 py-3 bg-gray-700 rounded-xl text-gray-300 hover:bg-gray-600"
+      >
+        Back
+      </motion.button>
 
-            <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleFinish}
-                className="px-6 py-3 bg-gradient-to-r from-purple-500 to-blue-500 rounded-xl text-white"
-            >
-                Finish
-            </motion.button>
-        </div>
-    </motion.div>
-)}
-
-
-
-
+  
+    </div>
+  </motion.div>
+)} 
             </AnimatePresence>
           </div>
         </motion.div>
       </div>
-  
-      {/* Toast Notifications */}
+
       <AnimatePresence>
         {showToast.visible && (
           <motion.div
@@ -880,7 +1262,7 @@ const handleFileChange = (event) => {
       </AnimatePresence>
     </div>
   );
-  
 };
 
 export default AIVideoEditor;
+

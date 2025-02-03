@@ -1,45 +1,143 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import getPlaylistVideos from "./getAllVideos.js";
 import getTranscript from "./getTranscript.js";
-
+import OpenAI from "openai";
 import dotenv from 'dotenv';
+import { apikeys } from "googleapis/build/src/apis/apikeys/index.js";
 dotenv.config();
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
+
+const openai = new OpenAI({
+    apiKey: "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",
+    dangerouslyAllowBrowser: true
+});
+
 
 export const generateVideoScript = async (req, res) => {
     try {
-        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+        const model = "gpt-4o"
 
-        const Details = req.body.gotDetails;
+        let Details = req.body.gotDetails;
         const customization = req.body.customization;
         const customPrompt = req.body.customPrompt;
+        console.log(typeof Details)
+
+        Details = Object.entries(Details).slice(0, 5).map(([key, value]) => ({ [key]: value }));
 
         const basePrompt = `
-I have multiple video transcripts, and I need you to create a cohesive video script by selecting and combining the most relevant segments.
+USER CONTEXT: ${customPrompt}
 
-IMPORTANT - Format your response as a JSON array with this exact structure:
+TASK: Create a cohesive video script by selecting and combining the most relevant segments from multiple video transcripts. The segments must have precise, non-overlapping timestamps and maintain a logical flow.
+
+OUTPUT FORMAT - Respond with a JSON array using this exact structure without any other text or explanation:
 [
   {
     "videoId": "string",
     "transcriptText": "exact quote from transcript",
-    "startTime": number,
-    "endTime": number
+    "startTime": (original_start_time - 2).toFixed(2),
+    "endTime": (original_end_time + 2).toFixed(2)
   }
 ]
 
-Key requirements:
-1. Only use exact quotes from the provided transcripts
-2. Each segment must include videoId and precise timestamps
-3. Maintain logical flow between segments
-4. Keep original timestamps in their exact format
-5. Ensure quotes are copied verbatim from source
+CRITICAL TIMESTAMP RULES:
+1. PRECISION REQUIREMENTS:
+   - All timestamps must use toFixed(2) for exactly 2 decimal places
+   - startTime and endTime must be exact numbers, not approximations
+   - endTime must precisely match when the spoken content ends
+   - No rounding of timestamps - use exact values
+
+2. ENDTIME CALCULATION:
+   - endTime must be the exact end of the spoken phrase
+   - Add exactly 2.00 seconds to the original end timestamp
+   - Verify the endTime matches the actual content end
+   - Do not extend beyond the natural pause in speech
+   - Must capture complete sentences/phrases
+
+3. NO OVERLAPS:
+   - Strict gap of minimum 0.50 seconds between segments
+   - endTime of segment A + 0.50 < startTime of segment B
+   - No exceptions to overlap prevention
+   - Verify gaps between all adjacent segments
+
+4. BUFFER ZONES:
+   - Start buffer: Exactly -2.00 seconds (if start > 2.00)
+   - End buffer: Exactly +2.00 seconds
+   - All buffers must be precise to 2 decimal places
+   - Buffers must not create overlaps
+
+5. DURATION VALIDATION:
+   - Minimum duration: 3.00 seconds
+   - Maximum duration: 60.00 seconds
+   - Calculate duration as (endTime - startTime).toFixed(2)
+   - Verify each segment's duration is within limits
+
+TIMESTAMP VALIDATION CHECKLIST:
+1. Start Time Rules:
+   - Must be >= 0.00
+   - Must be at least 0.50s after previous segment's endTime
+   - Must use .toFixed(2) for 2 decimal places
+   - Must account for -2.00s buffer when > 2.00
+
+2. End Time Rules:
+   - Must precisely match content end
+   - Must use .toFixed(2) for 2 decimal places
+   - Must include exact +2.00s buffer
+   - Must end at natural speech breaks
+   - Must be > startTime by at least 3.00 seconds
+   - Must leave 0.50s gap before next segment
+
+3. Duration Verification:
+   - Calculate: (endTime - startTime).toFixed(2)
+   - Verify: 3.00 <= duration <= 60.00
+   - Check natural speech boundaries
+   - Ensure complete phrases are captured
+
+CONTENT REQUIREMENTS:
+1. EXACT QUOTES: Only use verbatim quotes from source transcripts
+2. COMPLETE SEGMENTS: Include full sentences/thoughts, don't cut mid-sentence
+3. LOGICAL FLOW: Ensure narrative continuity between segments
+4. CONTEXT PRESERVATION: Don't combine unrelated segments
+5. RELEVANCE: Select segments that best match the user's request: "${customPrompt}"
+
+SEGMENT SELECTION CRITERIA:
+1. Prioritize segments that directly address the user's topic
+2. For gaming/kills clips: Focus on excited commentary and action moments
+3. For educational content: Prioritize clear explanations and key points
+4. For narrative content: Maintain story continuity
+5. Remove filler content and repetitive segments
+
+QUALITY CHECKS:
+1. TIMESTAMP VERIFICATION:
+   - Check each timestamp is properly formatted (XX.XX)
+   - Verify buffers are correctly applied (-2s start, +2s end)
+   - Confirm no timing overlaps or gaps < 0.5s
+2. CONTENT VERIFICATION:
+   - Validate complete sentences
+   - Check context continuity
+   - Verify proper videoId references
 
 Source Transcripts:
 ${JSON.stringify(Details, null, 2)}
 
-Remember: Your response must be a valid JSON array following the specified structure exactly.` + customPrompt;
+FINAL VALIDATION:
+Before returning the response:
+1. Verify each endTime matches actual content end
+2. Confirm all timestamps use .toFixed(2)
+3. Validate all gaps are >= 0.50 seconds
+4. Check all buffers are exactly ±2.00 seconds
+5. Ensure all durations are within limits
+6. Verify complete phrases are captured
+7. Test JSON parsing of the response
+
+Remember:
+- Use .toFixed(2) for all timestamps
+- endTime must match exact content end
+- Maintain precise 0.50s minimum gaps
+- Apply exact ±2.00s buffers
+- Follow user's specific requirements: "${customPrompt}"
+- Return valid JSON array only`;
 
 const enhancedPrompt = customization ? 
     `${basePrompt}
@@ -51,18 +149,21 @@ Style this selection according to:
 
 Maintain the same JSON structure while incorporating these style preferences.`
     : basePrompt;
-
-
         
-            console.log("Prompt-->" + enhancedPrompt)
+            console.log("Prompt-->" )
 
-        const result = await model.generateContent(enhancedPrompt);
+        const result =  await openai.chat.completions.create({
+            messages: [{ role: "developer", content: enhancedPrompt }],
+            model: "gpt-4o",
+            store: true,
+          });
+
         console.log("------")
-        // console.log(result)
 
-        const scriptContent = await result.response.text();
-        // console.log(">>>>")
-        // console.log(scriptContent);
+
+        const scriptContent = result.choices[0].message.content;
+
+        console.log(scriptContent);
 
         return res.status(200).json({
             success: true,
@@ -83,9 +184,6 @@ Maintain the same JSON structure while incorporating these style preferences.`
 
 export const customizeScript = async (req, res) => {
     try {
-        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        
         const { script, options } = req.body;
         const {
             tone = 'professional',
@@ -107,8 +205,13 @@ export const customizeScript = async (req, res) => {
             ${script}
         `;
 
-        const result = await model.generateContent(customizationPrompt);
-        const customizedScript = result.response.text();
+        const result = await openai.chat.completions.create({
+            messages: [{ role: "developer", content: customizationPrompt }],
+            model: "gpt-4o",
+            store: true,
+            max_tokens: 11000000,
+          });
+        const customizedScript = result.choices[0].message.content;
 
         return res.status(200).json({
             success: true,
@@ -129,9 +232,6 @@ export const customizeScript = async (req, res) => {
 
 export const translateScript = async (req, res) => {
     try {
-        const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-        const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-        
         const { script, targetLanguages, preserveFormatting = true } = req.body;
 
         const translations = await Promise.all(
@@ -141,10 +241,14 @@ export const translateScript = async (req, res) => {
                     ${script}
                 `;
                 
-                const result = await model.generateContent(translationPrompt);
+                const result =await openai.chat.completions.create({
+                    messages: [{ role: "developer", content: translationPrompt }],
+                    model: "gpt-4o",
+                    store: true,
+                  });
                 return {
                     language,
-                    content: result.response.text()
+                    content: result.choices[0].message.content
                 };
             })
         );
@@ -157,6 +261,7 @@ export const translateScript = async (req, res) => {
                 supportedLanguages: getSupportedLanguages()
             }
         });
+
     } catch (error) {
         return res.status(500).json({
             success: false,
@@ -166,7 +271,7 @@ export const translateScript = async (req, res) => {
     }
 };
 
-// Helper functions
+
 const getPlaylistId = (url) => {
     const urlObj = new URL(url);
     return urlObj.searchParams.get('list');

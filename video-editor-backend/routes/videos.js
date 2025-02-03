@@ -3,8 +3,10 @@ import multer from 'multer';
 import { getDriveTranscript, getTranscript } from '../controller/getTranscript.js';
 import { generateVideoScript, customizeScript, translateScript } from '../controller/claudAI.js';
 import { handleExternalVideo, handleLocalVideo, handleYoutubePlaylist, handleYoutubeVideo } from '../controller/uploadVideo.js';
+import handler from '../controller/download-clip.js';
 
 const router = express.Router();
+import generateVideo from '../controller/generateVideo.js';
 
 // Configure multer storage
 const storage = multer.diskStorage({
@@ -32,12 +34,14 @@ const upload = multer({
 router.post('/video/youtube', handleYoutubeVideo);
 router.post('/video/playlist', handleYoutubePlaylist);
 router.post('/video/upload', upload.single('video'), handleLocalVideo);
+router.post('/video/generate', generateVideo);
 
 // Transcript Generation Routes
 router.post('/transcript/generate', getTranscript);
 router.post('/transcript/drive', getDriveTranscript);
+router.get('/download-clip', handler);
 
-// Script Generation Routes
+
 router.post('/script/generate', generateVideoScript);
 router.post('/script/customize', customizeScript);
 router.post('/script/translate', translateScript);

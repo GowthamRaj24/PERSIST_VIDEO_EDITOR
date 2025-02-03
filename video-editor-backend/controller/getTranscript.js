@@ -2,9 +2,9 @@ import { YoutubeTranscript } from 'youtube-transcript';
 import fetch from 'node-fetch';
 import { google } from 'googleapis';
 import { SpeechClient } from '@google-cloud/speech';
-
 import path from 'path';
 import { fileURLToPath } from 'url';
+import axios from 'axios';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -12,17 +12,18 @@ const __dirname = path.dirname(__filename);
 import dotenv from 'dotenv';
 dotenv.config();
 
+// Utility function to extract Drive file ID
 const extractFileId = (driveLink) => {
-    const match = driveLink.match(/[-\w]{25,}/); 
+    const match = driveLink.match(/[-\w]{25,}/);
     return match ? match[0] : null;
 };
 
-// Create credentials object from env variables
+// Google Auth Configuration
 const credentials = {
     type: 'service_account',
     project_id: process.env.GOOGLE_PROJECT_ID,
     private_key_id: process.env.GOOGLE_PRIVATE_KEY_ID,
-    private_key: process.env.GOOGLE_PRIVATE_KEY,
+    private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
     client_email: process.env.GOOGLE_CLIENT_EMAIL,
     client_id: process.env.GOOGLE_CLIENT_ID,
     auth_uri: process.env.GOOGLE_AUTH_URI,
@@ -36,18 +37,21 @@ const auth = new google.auth.GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/drive.readonly']
 });
 
-const speechClient = new SpeechClient({
-    credentials
-});
+const speechClient = new SpeechClient({ credentials });
 
-
-
-import axios from 'axios';
+// Drive Transcript Handler
 export const getDriveTranscript = async (req, res) => {
     try {
-        const driveLink = req.body.videoUrl;
-        const fileId = extractFileId(driveLink);
-        
+        const { videoUrl } = req.body;
+        const fileId = extractFileId(videoUrl);
+
+        if (!fileId) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid Google Drive URL. Could not extract file ID."
+            });
+        }
+
         const drive = google.drive({ version: 'v3', auth });
         const response = await drive.files.get(
             { fileId, alt: 'media' },
@@ -55,7 +59,7 @@ export const getDriveTranscript = async (req, res) => {
         );
 
         const ASSEMBLY_API_KEY = process.env.ASSEMBLY_API_KEY;
-        
+
         const uploadResponse = await axios.post(
             'https://api.assemblyai.com/v2/upload',
             response.data,
@@ -67,13 +71,9 @@ export const getDriveTranscript = async (req, res) => {
             }
         );
 
-        console.log(uploadResponse.data.upload_url);
-
         const transcriptResponse = await axios.post(
             'https://api.assemblyai.com/v2/transcript',
-            {
-                audio_url: uploadResponse.data.upload_url
-            },
+            { audio_url: uploadResponse.data.upload_url },
             {
                 headers: {
                     'authorization': ASSEMBLY_API_KEY,
@@ -81,24 +81,16 @@ export const getDriveTranscript = async (req, res) => {
                 }
             }
         );
-        
 
-        console.log("--> " + transcriptResponse)
         const transcriptId = transcriptResponse.data.id;
-
-        console.log(transcriptId)
         let transcriptResult;
 
         while (true) {
             const pollingResponse = await axios.get(
                 `https://api.assemblyai.com/v2/transcript/${transcriptId}`,
-                {
-                    headers: {
-                        'authorization': ASSEMBLY_API_KEY
-                    }
-                }
+                { headers: { 'authorization': ASSEMBLY_API_KEY } }
             );
-            
+
             if (pollingResponse.data.status === 'completed') {
                 transcriptResult = pollingResponse.data;
                 break;
@@ -114,8 +106,6 @@ export const getDriveTranscript = async (req, res) => {
             duration: (word.end - word.start) / 1000
         }));
 
-        console.log(formattedCaptions);
-
         return res.json({
             success: true,
             data: formattedCaptions,
@@ -123,6 +113,7 @@ export const getDriveTranscript = async (req, res) => {
         });
 
     } catch (error) {
+        console.error('Error in getDriveTranscript:', error);
         return res.status(500).json({
             success: false,
             message: "Failed to fetch transcript",
@@ -131,24 +122,22 @@ export const getDriveTranscript = async (req, res) => {
     }
 };
 
-
-
-
+// YouTube Video Details Handler
 export const getVideoDetails = async (req, res) => {
     try {
-        const videoId = req.body.videoUrl;
+        const { videoUrl } = req.body;
         const apiKey = process.env.YOUTUBE_API_KEY;
         
         const response = await fetch(
-            `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoId}&key=${apiKey}`
+            `https://www.googleapis.com/youtube/v3/videos?part=snippet&id=${videoUrl}&key=${apiKey}`
         );
         
         const data = await response.json();
         
-        return res.status(200).json({
+        return res.json({
             success: true,
             data: {
-                videoId,
+                videoId: videoUrl,
                 title: data.items[0].snippet.title,
                 thumbnail: data.items[0].snippet.thumbnails.high.url
             }
@@ -162,30 +151,29 @@ export const getVideoDetails = async (req, res) => {
     }
 };
 
+
 export const getTranscript = async (req, res) => {
     try {
-        // Extract clean video ID from the input
-        const inputId = req.body.videoId;
-        const videoId = inputId.includes('watch?v=') 
-            ? inputId.split('watch?v=')[1].split('&')[0] 
-            : inputId;
-            
-        const cleanVideoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-        console.log('Processing video:', cleanVideoUrl);
+        const { videoId } = req.body;
+        const cleanVideoId = videoId.includes('watch?v=') 
+            ? videoId.split('watch?v=')[1].split('&')[0] 
+            : videoId;
 
-        // Fetch transcript with specific options
+        const cleanVideoUrl = `https://www.youtube.com/watch?v=${cleanVideoId}`;
+
+
+
         const rawTranscript = await YoutubeTranscript.fetchTranscript(cleanVideoUrl, {
-            // lang: 'en',
             country: 'US'
         });
 
-        console.log("Raw transcript length:", rawTranscript.length);
+        console.log(rawTranscript);
 
         const formattedCaptions = rawTranscript.map((caption, index) => ({
             id: index,
             text: caption.text,
-            startTime: ((caption.offset / 1)).toFixed(2),
-            endTime: (((caption.offset + caption.duration) / 1)).toFixed(2),
+            startTime: (caption.offset / 1).toFixed(2),
+            endTime: ((caption.offset + caption.duration) / 1).toFixed(2),
             duration: caption.duration / 1,
             formattedTime: {
                 start: {
@@ -210,7 +198,6 @@ export const getTranscript = async (req, res) => {
         });
 
     } catch (error) {
-        console.error('Transcript Error:', error);
         return res.status(500).json({
             success: false,
             message: "Failed to fetch transcript",
@@ -218,7 +205,5 @@ export const getTranscript = async (req, res) => {
         });
     }
 };
-
-
 
 export default getTranscript;

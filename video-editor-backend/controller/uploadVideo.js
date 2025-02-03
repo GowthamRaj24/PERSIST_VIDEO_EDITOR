@@ -67,14 +67,21 @@ export const handleYoutubeVideo = async (req, res) => {
 
 export const handleYoutubePlaylist = async (req, res) => {
     try {
-        const  playlistUrl  = req.body.videoUrl;
-        console.log(playlistUrl);
+        const playlistUrl = req.body.videoUrl;
+        console.log('Playlist URL:', playlistUrl);
+
         const playlistId = new URL(playlistUrl).searchParams.get('list');
-        
-        console.log(playlistId);
+        if (!playlistId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid playlist URL. Could not extract playlist ID.'
+            });
+        }
+
+        console.log('Playlist ID:', playlistId);
         const videos = [];
         let nextPageToken = '';
-        
+
         do {
             const playlistResponse = await youtube.playlistItems.list({
                 key: API_KEY,
@@ -83,22 +90,30 @@ export const handleYoutubePlaylist = async (req, res) => {
                 maxResults: 50,
                 pageToken: nextPageToken
             });
-            
-            videos.push(...playlistResponse.data.items.map(item => ({
-                id: item.snippet.resourceId.videoId,
-                title: item.snippet.title,
-                thumbnail: item.snippet.thumbnails.high.url,
-                position: item.snippet.position
-            })));
-            
+
+            videos.push(...playlistResponse.data.items.map(item => {
+                const thumbnails = item.snippet.thumbnails;
+                const thumbnailUrl = thumbnails.high ? thumbnails.high.url : (thumbnails.default ? thumbnails.default.url : null);
+
+                return {
+                    id: item.snippet.resourceId.videoId,
+                    title: item.snippet.title,
+                    thumbnail: thumbnailUrl,
+                    position: item.snippet.position
+                };
+            }));
+
             nextPageToken = playlistResponse.data.nextPageToken;
         } while (nextPageToken);
-        
+
+        console.log(videos[0]);
+
         return res.status(200).json({
             success: true,
             videos
         });
     } catch (error) {
+        console.error('Error processing YouTube playlist:', error);
         return res.status(500).json({
             success: false,
             message: 'Failed to process YouTube playlist',

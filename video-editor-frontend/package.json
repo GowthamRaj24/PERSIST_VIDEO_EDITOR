@@ -3,21 +3,25 @@
   "version": "0.1.0",
   "private": true,
   "dependencies": {
+    "@craco/craco": "^7.1.0",
+    "@heroicons/react": "^2.2.0",
     "@tailwindcss/forms": "^0.5.10",
     "@tailwindcss/line-clamp": "^0.4.4",
     "@tailwindcss/typography": "^0.5.16",
+    "apify-client": "^2.11.1",
+    "axios": "^1.7.9",
     "cra-template": "1.2.0",
     "framer-motion": "^12.0.6",
+    "openai": "^4.81.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-scripts": "5.0.1",
     "tailwind-scrollbar": "^3.1.0"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "build": "CI=false react-scripts build",
-    "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "start": "craco start",
+    "build": "craco build",
+    "test": "craco test"
   },
   "eslintConfig": {
     "extends": [
@@ -38,7 +42,6 @@
     ]
   },
   "devDependencies": {
-
     "@babel/plugin-proposal-private-property-in-object": "^7.20.1",
     "web-vitals": "^4.2.4"
   }
