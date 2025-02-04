@@ -38,7 +38,7 @@ router.post('/video/upload', upload.single('video'), handleLocalVideo);
 router.post('/video/generate', generateVideo);
 router.post('/promptAI', promptAI);
 
-// Transcript Generation Routes
+
 router.post('/transcript/generate', getTranscript);
 router.post('/transcript/drive', getDriveTranscript);
 router.get('/download-clip', handler);

@@ -12,13 +12,11 @@ const __dirname = path.dirname(__filename);
 import dotenv from 'dotenv';
 dotenv.config();
 
-// Utility function to extract Drive file ID
 const extractFileId = (driveLink) => {
     const match = driveLink.match(/[-\w]{25,}/);
     return match ? match[0] : null;
 };
 
-// Google Auth Configuration
 const credentials = {
     type: 'service_account',
     project_id: process.env.GOOGLE_PROJECT_ID,
@@ -39,7 +37,6 @@ const auth = new google.auth.GoogleAuth({
 
 const speechClient = new SpeechClient({ credentials });
 
-// Drive Transcript Handler
 export const getDriveTranscript = async (req, res) => {
     try {
         const { videoUrl } = req.body;
@@ -151,6 +148,14 @@ export const getVideoDetails = async (req, res) => {
     }
 };
 
+import { HttpsProxyAgent } from 'https-proxy-agent';
+
+
+const proxies = {
+    "https": 'http://spjlxr4ogb:tB3bf_1f0kjRGdMx9o@gate.smartproxy.com:10004'
+};
+
+const proxyAgent = new HttpsProxyAgent(proxies.https);
 
 export const getTranscript = async (req, res) => {
     try {
@@ -161,13 +166,23 @@ export const getTranscript = async (req, res) => {
 
         const cleanVideoUrl = `https://www.youtube.com/watch?v=${cleanVideoId}`;
 
-
-
-        const rawTranscript = await YoutubeTranscript.fetchTranscript(cleanVideoUrl, {
-            country: 'US'
+        // Configure axios instance with proxy
+        const axiosInstance = axios.create({
+            httpsAgent: proxyAgent,
+            proxy: false // Disable axios's default proxy handling
         });
 
-        console.log(rawTranscript);
+        const rawTranscript = await YoutubeTranscript.fetchTranscript(cleanVideoUrl, {
+            country: 'US',
+            requestOptions: {
+                agent: proxyAgent,
+                headers: {
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                }
+            }
+        });
+
+        console.log('Transcript fetched successfully');
 
         const formattedCaptions = rawTranscript.map((caption, index) => ({
             id: index,
@@ -198,10 +213,12 @@ export const getTranscript = async (req, res) => {
         });
 
     } catch (error) {
+        console.error('Transcript fetch error:', error);
         return res.status(500).json({
             success: false,
             message: "Failed to fetch transcript",
-            error: error.message
+            error: error.message,
+            details: error.response?.data || undefined
         });
     }
 };

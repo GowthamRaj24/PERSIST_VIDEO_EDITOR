@@ -47,7 +47,6 @@ const generateVideo = async (req, res) => {
                         .run();
                 });
 
-                // Clean up original file
                 await fs.remove(tempPath);
                 trimmedPaths.push(trimmedPath);
 
@@ -73,7 +72,6 @@ const generateVideo = async (req, res) => {
 
         const videoBuffer = await fs.readFile(outputPath);
 
-        // Clean up all files
         await fs.remove(outputDir);
         console.log("Video generated successfully");
 

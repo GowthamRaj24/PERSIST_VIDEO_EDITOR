@@ -1029,48 +1029,7 @@ useEffect(() => {
     exit={{ opacity: 0, y: -20 }}
     className="space-y-8"
   >
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <div className="space-y-4">
-        <h3 className="text-xl font-semibold text-white">Script Options</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <select 
-            onChange={(e) => setScriptOptions(prev => ({...prev, tone: e.target.value}))}
-            className="bg-gray-800 text-gray-300 rounded-lg p-2"
-          >
-            <option value="professional">Professional</option>
-            <option value="casual">Casual</option>
-            <option value="formal">Formal</option>
-            <option value="friendly">Friendly</option>
-            <option value="neutral">Neutral</option>
-          </select>
 
-          <select 
-            onChange={(e) => setScriptOptions(prev => ({...prev, length: e.target.value}))}
-            className="bg-gray-800 text-gray-300 rounded-lg p-2"
-          >
-            <option value="short">Short</option>
-            <option value="medium">Medium</option>
-            <option value="long">Long</option>
-          </select>
-
-        </div>
-
-        <button
-          onClick={handleGenerateScript}
-          disabled={isGeneratingScript}
-          className="w-full py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {isGeneratingScript ? (
-            <>
-              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-              <span>Generating...</span>
-            </>
-          ) : (
-            'Generate Script'
-          )}
-        </button>
-      </div>
-    </div>
 
     <div className="bg-gray-800/50 rounded-xl p-6">
       <h3 className="text-xl font-semibold text-white mb-4">Video Preview</h3>
@@ -1124,7 +1083,9 @@ useEffect(() => {
 </button>
         </div>
 
-
+        <div className="text-center text-sm text-gray-500">
+        Processing usually takes 5-10 seconds for a each clip
+      </div>
         {showDownloadButton ? (
     <button
       onClick={handleDownload}
@@ -1165,14 +1126,37 @@ useEffect(() => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
               d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
           </svg>
-          <span>Generate Video</span>
+          <span>Merge + Generate Video</span>
         </>
       )}
     </button>
   )}
+  
       </div>
+      
     </div>
 
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="space-y-4">
+
+
+        <button
+          onClick={handleGenerateScript}
+          disabled={isGeneratingScript}
+          className="w-full py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          {isGeneratingScript ? (
+            <>
+              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+              <span>Generating...</span>
+            </>
+          ) : (
+            'Generate Script'
+          )}
+          
+        </button>
+      </div>
+    </div>
 
         <div className="bg-gray-800/50 rounded-xl p-6">
             <div className="flex justify-between items-center mb-4">
