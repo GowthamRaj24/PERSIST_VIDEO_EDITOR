@@ -7,61 +7,30 @@ import { fileURLToPath } from 'url';
 import axios from 'axios';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import dotenv from 'dotenv';
+import https from 'https';
 
 dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Proxy configuration with fallback
 let proxyAgent;
 try {
-    // Get proxy configuration from environment variables with fallback values
     const proxyConfig = {
         host: process.env.PROXY_HOST || 'gate.smartproxy.com',
-        port: process.env.PROXY_PORT || '10001',
+        port: process.env.PROXY_PORT || '10002',
         username: process.env.PROXY_USERNAME || 'spjlxr4ogb',
         password: process.env.PROXY_PASSWORD || 'tB3bf_1f0kjRGdMx9o'
     };
 
-    // Construct proxy URL
     const proxyUrl = `http://${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port}`;
     proxyAgent = new HttpsProxyAgent(proxyUrl);
+
     console.log('Proxy agent created successfully');
 } catch (error) {
     console.error('Error creating proxy agent:', error);
     proxyAgent = null;
 }
-
-// Test proxy connection function with retry mechanism
-const testProxyConnection = async (retries = 3) => {
-    if (!proxyAgent) {
-        console.log('No proxy agent available, proceeding without proxy');
-        return true;
-    }
-
-    for (let i = 0; i < retries; i++) {
-        try {
-            const response = await axios.get('https://ip.smartproxy.com/json', {
-                httpsAgent: proxyAgent,
-                timeout: 5000,
-                validateStatus: status => status < 500 // Accept all status codes less than 500
-            });
-            console.log('Proxy connection successful');
-            return true;
-        } catch (error) {
-            console.error(`Proxy connection attempt ${i + 1} failed:`, error.message);
-            if (i === retries - 1) {
-                console.log('Falling back to direct connection');
-                proxyAgent = null;
-                return true;
-            }
-            // Wait before retrying
-            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
-        }
-    }
-    return false;
-};
 
 const extractFileId = (driveLink) => {
     const match = driveLink.match(/[-\w]{25,}/);
@@ -208,52 +177,81 @@ export const getVideoDetails = async (req, res) => {
     }
 };
 
+// Create proxy configuration
+const createProxyAgent = () => {
+    try {
+        const proxyConfig = {
+            host: process.env.PROXY_HOST || 'gate.smartproxy.com',
+            port: process.env.PROXY_PORT || '10004',
+            username: process.env.PROXY_USERNAME || 'spjlxr4ogb',
+            password: process.env.PROXY_PASSWORD || 'tB3bf_1f0kjRGdMx9o'
+        };
+
+        const proxyUrl = `http://${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port}`;
+        console.log('Creating proxy agent with URL pattern:', 
+            `http://[username]:[password]@${proxyConfig.host}:${proxyConfig.port}`);
+        
+        return new HttpsProxyAgent(proxyUrl);
+    } catch (error) {
+        console.error('Error creating proxy agent:', error);
+        return null;
+    }
+};
+
+// Create custom axios instance with proxy
+const createAxiosInstance = (proxyAgent) => {
+    return axios.create({
+        httpsAgent: proxyAgent,
+        timeout: 30000,
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        }
+    });
+};
+
 export const getTranscript = async (req, res) => {
+    const proxyAgent = createProxyAgent();
+    const axiosInstance = createAxiosInstance(proxyAgent);
+
     try {
         const { videoId } = req.body;
+        console.log('Received video ID:', videoId);
+
         const cleanVideoId = videoId.includes('watch?v=') 
             ? videoId.split('watch?v=')[1].split('&')[0] 
             : videoId;
 
+        console.log('Cleaned video ID:', cleanVideoId);
         const cleanVideoUrl = `https://www.youtube.com/watch?v=${cleanVideoId}`;
 
-        // Create axios instance with proxy if available
-        const axiosConfig = {
-            timeout: 30000 // 30 second timeout
-        };
-
-        if (proxyAgent) {
-            axiosConfig.httpsAgent = proxyAgent;
-            axiosConfig.proxy = false; // Disable default proxy handling
-        }
-
-        const axiosInstance = axios.create(axiosConfig);
-
-        // Configure request options
+        // Configure request options with proxy
         const requestOptions = {
             country: 'US',
             requestOptions: {
+                agent: proxyAgent,
                 headers: {
-                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                }
+                    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+                },
+                timeout: 30000,
+                httpsAgent: proxyAgent
             }
         };
 
-        // Add proxy agent to request options if available
-        if (proxyAgent) {
-            requestOptions.requestOptions.agent = proxyAgent;
-        }
+        console.log('Attempting to fetch transcript with proxy...');
 
+        // Fetch transcript with proxy
         const rawTranscript = await YoutubeTranscript.fetchTranscript(cleanVideoUrl, requestOptions);
 
-        console.log('Transcript fetched successfully');
+        console.log('Transcript fetched successfully, formatting response...');
 
         const formattedCaptions = rawTranscript.map((caption, index) => ({
             id: index,
             text: caption.text,
-            startTime: (caption.offset / 1).toFixed(2),
-            endTime: ((caption.offset + caption.duration) / 1).toFixed(2),
-            duration: caption.duration / 1,
+            startTime: (caption.offset / 1000).toFixed(2),
+            endTime: ((caption.offset + caption.duration) / 1000).toFixed(2),
+            duration: caption.duration,
             formattedTime: {
                 start: {
                     hours: Math.floor(caption.offset / 3600000),
@@ -273,17 +271,27 @@ export const getTranscript = async (req, res) => {
         return res.json({
             success: true,
             data: formattedCaptions,
-            message: "Captions with timestamps fetched successfully"
+            message: "Captions with timestamps fetched successfully",
+            proxyUsed: !!proxyAgent
         });
 
     } catch (error) {
-        console.error('Transcript fetch error:', error);
+        console.error('Detailed error:', {
+            message: error.message,
+            stack: error.stack,
+            proxyStatus: !!proxyAgent,
+            axiosStatus: !!axiosInstance
+        });
+
         return res.status(500).json({
             success: false,
             message: "Failed to fetch transcript",
             error: error.message,
-            details: error.response?.data || undefined,
-            proxyError: proxyAgent ? 'Using proxy' : 'No proxy in use'
+            details: {
+                errorType: error.name,
+                proxyUsed: !!proxyAgent,
+                errorDetails: error.response?.data || undefined
+            }
         });
     }
 };
