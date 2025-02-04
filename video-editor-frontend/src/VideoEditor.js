@@ -6,7 +6,7 @@ import Backend_Url from './BackendUrl';
 
 
 
-const AIVideoEditor = () => {
+const AIVideoEditor = () =>{
   const [finalGeneratedContent , setFinalGeneratedContent] = useState("");
   const [videoUrl, setVideoUrl] = useState(null);
   const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
@@ -337,8 +337,11 @@ ${textToTranslate}`;
 
                             let completion = await axios.post(Backend_Url + '/promptAI', {
                                 prompt: translationPrompt
-                            });
+                            })
                             completion = completion.data.response;
+             
+                            
+                            console.log("Translation Response Transcript--> ",completion)
                             const translatedText = completion.data.response;
                             const translatedLines = translatedText.split('\n');
 
@@ -390,20 +393,22 @@ ${textToTranslate}`;
     }
 };
 
-// Helper function for language detection
+
 const detectLanguage = async (text) => {
     try {
         let response = await axios.post(Backend_Url + '/promptAI', {
-            prompt: text 
+            prompt: text
         });
+
+        response = response.data.response;
+
+        console.log("Detected Language Response--> ",JSON.stringify(response))
         
-        // Safely access the response data
-        const content = response?.data?.response?.choices?.[0]?.message?.content;
-        return content?.trim() || 'English'; // Return English as fallback if no content
-        
+
+        return response;
     } catch (error) {
         console.error('Language detection failed:', error);
-        return 'English'; // Default to English on error
+        return 'English';
     }
 };
 
