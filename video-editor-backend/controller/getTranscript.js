@@ -13,42 +13,54 @@ dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Proxy configuration with error handling
+// Proxy configuration with fallback
 let proxyAgent;
 try {
-    const proxyUrl = process.env.PROXY_LINK;
-    if (!proxyUrl) {
-        console.warn('Warning: PROXY_LINK environment variable is not set');
-        proxyAgent = null;
-    } else {
-        // Ensure the proxy URL starts with http:// or https://
-        const formattedProxyUrl = proxyUrl.startsWith('http') ? proxyUrl : `http://${proxyUrl}`;
-        proxyAgent = new HttpsProxyAgent(formattedProxyUrl);
-        console.log('Proxy agent created successfully');
-    }
+    // Get proxy configuration from environment variables with fallback values
+    const proxyConfig = {
+        host: process.env.PROXY_HOST || 'gate.smartproxy.com',
+        port: process.env.PROXY_PORT || '10001',
+        username: process.env.PROXY_USERNAME || 'spjlxr4ogb',
+        password: process.env.PROXY_PASSWORD || 'tB3bf_1f0kjRGdMx9o'
+    };
+
+    // Construct proxy URL
+    const proxyUrl = `http://${proxyConfig.username}:${proxyConfig.password}@${proxyConfig.host}:${proxyConfig.port}`;
+    proxyAgent = new HttpsProxyAgent(proxyUrl);
+    console.log('Proxy agent created successfully');
 } catch (error) {
     console.error('Error creating proxy agent:', error);
     proxyAgent = null;
 }
 
-// Test proxy connection function
-const testProxyConnection = async () => {
+// Test proxy connection function with retry mechanism
+const testProxyConnection = async (retries = 3) => {
     if (!proxyAgent) {
-        console.log('No proxy agent available, skipping proxy test');
+        console.log('No proxy agent available, proceeding without proxy');
         return true;
     }
 
-    try {
-        const response = await axios.get('https://ip.smartproxy.com/json', {
-            httpsAgent: proxyAgent,
-            timeout: 5000 // 5 second timeout
-        });
-        console.log('Proxy connection successful:', response.data);
-        return true;
-    } catch (error) {
-        console.error('Proxy connection failed:', error.message);
-        return false;
+    for (let i = 0; i < retries; i++) {
+        try {
+            const response = await axios.get('https://ip.smartproxy.com/json', {
+                httpsAgent: proxyAgent,
+                timeout: 5000,
+                validateStatus: status => status < 500 // Accept all status codes less than 500
+            });
+            console.log('Proxy connection successful');
+            return true;
+        } catch (error) {
+            console.error(`Proxy connection attempt ${i + 1} failed:`, error.message);
+            if (i === retries - 1) {
+                console.log('Falling back to direct connection');
+                proxyAgent = null;
+                return true;
+            }
+            // Wait before retrying
+            await new Promise(resolve => setTimeout(resolve, 1000 * (i + 1)));
+        }
     }
+    return false;
 };
 
 const extractFileId = (driveLink) => {
