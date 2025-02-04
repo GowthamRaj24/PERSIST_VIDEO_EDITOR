@@ -152,7 +152,7 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 
 
 const proxies = {
-    "https": 'http://spjlxr4ogb:tB3bf_1f0kjRGdMx9o@gate.smartproxy.com:10004'
+    "https": process
 };
 
 const proxyAgent = new HttpsProxyAgent(proxies.https);
@@ -166,10 +166,9 @@ export const getTranscript = async (req, res) => {
 
         const cleanVideoUrl = `https://www.youtube.com/watch?v=${cleanVideoId}`;
 
-        // Configure axios instance with proxy
         const axiosInstance = axios.create({
             httpsAgent: proxyAgent,
-            proxy: false // Disable axios's default proxy handling
+            proxy: false 
         });
 
         const rawTranscript = await YoutubeTranscript.fetchTranscript(cleanVideoUrl, {
