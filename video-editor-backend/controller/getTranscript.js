@@ -5,12 +5,51 @@ import { SpeechClient } from '@google-cloud/speech';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import axios from 'axios';
+import { HttpsProxyAgent } from 'https-proxy-agent';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-import dotenv from 'dotenv';
-dotenv.config();
+// Proxy configuration with error handling
+let proxyAgent;
+try {
+    const proxyUrl = process.env.PROXY_LINK;
+    if (!proxyUrl) {
+        console.warn('Warning: PROXY_LINK environment variable is not set');
+        proxyAgent = null;
+    } else {
+        // Ensure the proxy URL starts with http:// or https://
+        const formattedProxyUrl = proxyUrl.startsWith('http') ? proxyUrl : `http://${proxyUrl}`;
+        proxyAgent = new HttpsProxyAgent(formattedProxyUrl);
+        console.log('Proxy agent created successfully');
+    }
+} catch (error) {
+    console.error('Error creating proxy agent:', error);
+    proxyAgent = null;
+}
+
+// Test proxy connection function
+const testProxyConnection = async () => {
+    if (!proxyAgent) {
+        console.log('No proxy agent available, skipping proxy test');
+        return true;
+    }
+
+    try {
+        const response = await axios.get('https://ip.smartproxy.com/json', {
+            httpsAgent: proxyAgent,
+            timeout: 5000 // 5 second timeout
+        });
+        console.log('Proxy connection successful:', response.data);
+        return true;
+    } catch (error) {
+        console.error('Proxy connection failed:', error.message);
+        return false;
+    }
+};
 
 const extractFileId = (driveLink) => {
     const match = driveLink.match(/[-\w]{25,}/);
@@ -157,28 +196,6 @@ export const getVideoDetails = async (req, res) => {
     }
 };
 
-import { HttpsProxyAgent } from 'https-proxy-agent';
-
-
-const proxies = {
-    "https": process.env.PROXY_LINK
-};
-
-const proxyAgent = new HttpsProxyAgent(proxies.https);
-
-const testProxyConnection = async () => {
-    try {
-        const response = await axios.get('https://ip.smartproxy.com/json', {
-            httpsAgent: proxyAgent,
-        });
-        console.log('Proxy connection successful:', response.data);
-        return true;
-    } catch (error) {
-        console.error('Proxy connection failed:', error.message);
-        return false;
-    }
-};
-
 export const getTranscript = async (req, res) => {
     try {
         const { videoId } = req.body;
@@ -188,20 +205,34 @@ export const getTranscript = async (req, res) => {
 
         const cleanVideoUrl = `https://www.youtube.com/watch?v=${cleanVideoId}`;
 
-        const axiosInstance = axios.create({
-            httpsAgent: proxyAgent,
-            proxy: false 
-        });
+        // Create axios instance with proxy if available
+        const axiosConfig = {
+            timeout: 30000 // 30 second timeout
+        };
 
-        const rawTranscript = await YoutubeTranscript.fetchTranscript(cleanVideoUrl, {
+        if (proxyAgent) {
+            axiosConfig.httpsAgent = proxyAgent;
+            axiosConfig.proxy = false; // Disable default proxy handling
+        }
+
+        const axiosInstance = axios.create(axiosConfig);
+
+        // Configure request options
+        const requestOptions = {
             country: 'US',
             requestOptions: {
-                agent: proxyAgent,
                 headers: {
                     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
                 }
             }
-        });
+        };
+
+        // Add proxy agent to request options if available
+        if (proxyAgent) {
+            requestOptions.requestOptions.agent = proxyAgent;
+        }
+
+        const rawTranscript = await YoutubeTranscript.fetchTranscript(cleanVideoUrl, requestOptions);
 
         console.log('Transcript fetched successfully');
 
@@ -239,7 +270,8 @@ export const getTranscript = async (req, res) => {
             success: false,
             message: "Failed to fetch transcript",
             error: error.message,
-            details: error.response?.data || undefined
+            details: error.response?.data || undefined,
+            proxyError: proxyAgent ? 'Using proxy' : 'No proxy in use'
         });
     }
 };
