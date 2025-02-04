@@ -815,7 +815,7 @@ useEffect(() => {
                     <div className="aspect-video w-full">
                         <iframe
                             src={`https://www.youtube.com/embed/${video.id}`}
-                            title={video.title}
+                            title={`YouTube video player - ${video.title}`}
                             className="h-full w-full"
                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                             allowFullScreen
@@ -931,6 +931,7 @@ useEffect(() => {
                         <iframe
                             src={`https://www.youtube.com/embed/${activeVideo}`}
                             className="w-full h-full"
+                            title={`Active video player - ${gotDetails.videos.find(v => v.id === activeVideo)?.title || 'Current selection'}`}
                             allowFullScreen
                         />
                     </div>

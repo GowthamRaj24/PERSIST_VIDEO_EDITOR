@@ -237,7 +237,7 @@ const handleTimeChange = (index, type, value) => {
                       width="100%"
                       height="100%"
                       src={`https://www.youtube.com/embed/${segment.videoId}?start=${Math.floor(parseFloat(segment.startTime))}&end=${Math.floor(parseFloat(segment.endTime))}&autoplay=1`}
-                      title={`Segment ${index + 1}`}
+                      title={`Video segment ${index + 1} preview - ${Math.floor(parseFloat(segment.startTime))}s to ${Math.floor(parseFloat(segment.endTime))}s`}
                       frameBorder="0"
                       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                       allowFullScreen
