@@ -4,6 +4,7 @@ import { getDriveTranscript, getTranscript } from '../controller/getTranscript.j
 import { generateVideoScript, customizeScript, translateScript } from '../controller/claudAI.js';
 import { handleExternalVideo, handleLocalVideo, handleYoutubePlaylist, handleYoutubeVideo } from '../controller/uploadVideo.js';
 import handler from '../controller/download-clip.js';
+import promptAI from '../controller/frontendOpenAI.js';
 
 const router = express.Router();
 import generateVideo from '../controller/generateVideo.js';
@@ -35,6 +36,7 @@ router.post('/video/youtube', handleYoutubeVideo);
 router.post('/video/playlist', handleYoutubePlaylist);
 router.post('/video/upload', upload.single('video'), handleLocalVideo);
 router.post('/video/generate', generateVideo);
+router.post('/promptAI', promptAI);
 
 // Transcript Generation Routes
 router.post('/transcript/generate', getTranscript);

@@ -1,22 +1,16 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ScriptDisplay from './ScriptDisplay';
+import axios from "axios"
 import Backend_Url from './BackendUrl';
-import OpenAI from "openai";
-
-
-const openai = new OpenAI({
-    apiKey: "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",
-    dangerouslyAllowBrowser: true
-});
 
 
 
 const AIVideoEditor = () => {
   const [finalGeneratedContent , setFinalGeneratedContent] = useState("");
   const [videoUrl, setVideoUrl] = useState(null);
-const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
-const [isVideoLoading, setIsVideoLoading] = useState(false);
+  const [isGeneratingVideo, setIsGeneratingVideo] = useState(false);
+  const [isVideoLoading, setIsVideoLoading] = useState(false);
 
   const [isGeneratingScript, setIsGeneratingScript] = useState(false);
   const [isApplyingModifications, setIsApplyingModifications] = useState(false);
@@ -341,16 +335,11 @@ Context: ${topic || 'General content'}
 Text to translate:
 ${textToTranslate}`;
 
-                            const completion = await openai.chat.completions.create({
-                                messages: [{
-                                    role: "user",
-                                    content: translationPrompt
-                                }],
-                                model: "gpt-4",
-                                temperature: 0.3,
+                            let completion = await axios.post(Backend_Url + '/promptAI', {
+                                prompt: translationPrompt
                             });
-
-                            const translatedText = completion.choices[0].message.content;
+                            completion = completion.data.response;
+                            const translatedText = completion.data.response;
                             const translatedLines = translatedText.split('\n');
 
                             transcripts[video.id] = result.data.map((item, index) => ({
@@ -404,17 +393,14 @@ ${textToTranslate}`;
 // Helper function for language detection
 const detectLanguage = async (text) => {
     try {
-        const response = await openai.chat.completions.create({
-            messages: [{
-                role: "user",
-                content: text
-            }],
-            model: "gpt-4",
-            temperature: 0.1,
-            max_tokens: 10
+        let response = await axios.post(Backend_Url + '/promptAI', {
+            prompt: text 
         });
-
-        return response.choices[0].message.content.trim();
+        
+        // Safely access the response data
+        const content = response?.data?.response?.choices?.[0]?.message?.content;
+        return content?.trim() || 'English'; // Return English as fallback if no content
+        
     } catch (error) {
         console.error('Language detection failed:', error);
         return 'English'; // Default to English on error

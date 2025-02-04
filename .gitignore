@@ -2,3 +2,4 @@
 /video-editor-backend/.env
 /video-editor-frontend/node_modules
 /video-editor-frontend/.env
+/video-editor-frontend/secret.js

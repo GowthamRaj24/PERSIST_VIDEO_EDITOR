@@ -5,7 +5,7 @@ dotenv.config();
 
 const getPlaylistVideos = async (req, res) => {
     const { playlistUrl } = req.body;
-    
+
     const getPlaylistId = (url) => {
         const urlParams = new URL(url).searchParams;
         return urlParams.get("list");
