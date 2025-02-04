@@ -37,6 +37,15 @@ const auth = new google.auth.GoogleAuth({
 
 const speechClient = new SpeechClient({ credentials });
 
+const proxyConfig = {
+    host: 'gate.smartproxy.com',
+    port: 10001,
+    auth: {
+        username: 'spjlxr4ogb',
+        password: 'tB3bf_1f0kjRGdMx9o'
+    }
+};
+
 export const getDriveTranscript = async (req, res) => {
     try {
         const { videoUrl } = req.body;
@@ -152,10 +161,23 @@ import { HttpsProxyAgent } from 'https-proxy-agent';
 
 
 const proxies = {
-    "https": process
+    "https": process.env.PROXY_LINK
 };
 
 const proxyAgent = new HttpsProxyAgent(proxies.https);
+
+const testProxyConnection = async () => {
+    try {
+        const response = await axios.get('https://ip.smartproxy.com/json', {
+            httpsAgent: proxyAgent,
+        });
+        console.log('Proxy connection successful:', response.data);
+        return true;
+    } catch (error) {
+        console.error('Proxy connection failed:', error.message);
+        return false;
+    }
+};
 
 export const getTranscript = async (req, res) => {
     try {
